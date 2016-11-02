@@ -3,153 +3,91 @@ var bodyParser = require('body-parser');
 var mongoose = require('mongoose');
 var Verify = require('./verify');
 
+var Favorites = require('../models/favorites');
 var Dishes = require('../models/dishes');
+var User = require('../models/user');
 
-var dishRouter = express.Router();
-dishRouter.use(bodyParser.json());
+var favoriteRouter = express.Router();
+favoriteRouter.use(bodyParser.json());
 
-dishRouter.route('/')
+favoriteRouter.route('/')
 .get(Verify.verifyOrdinaryUser, function (req, res, next) {
-    Dishes.find({})
-        .populate('comments.postedBy')//uses populate to get the postedby information for the comments.
-        .exec(function (err, dish) {
+    Favorites.find({postedBy:req.decoded._doc._id})
+        .populate('Dishes.dishId','description')
+        .populate('User.postedBy','username')
+        .exec(function (err, favorite) {
         if (err) throw err;
-        res.json(dish);
+        res.json(favorite);
+        console.log(req.decoded._doc._id);
+        console.log(req.params._id);
     });
 })
 
-.post(Verify.verifyOrdinaryUser,Verify.verifyAdmin, function (req, res, next) {
-    Dishes.create(req.body, function (err, dish) {
+/*.post(function (req, res, next) {
+    Favorites.create(req.body, function (err, favorite) {
         if (err) throw err;
-        console.log('Dish created!');
-        var id = dish._id;
+        req.body.postedBy = req.decoded._doc._id;
+        favorite.save(function (err, favorite) {
+            if (err) throw err;
+            console.log('Favorite added');
+            res.json(favorite);
+        });
+    });
+})*/
+
+
+
+
+/*
+.post(Verify.verifyOrdinaryUser, function (req, res, next) {
+    Favorites.create(req.body, function (err, favorite) {
+
+        req.body.postedBy = req.decoded._doc._id;
+        console.log(req.body);
+        if (err) throw err;
+        console.log('Favorite Added');
+        var id = favorite._id;
 
         res.writeHead(200, {
             'Content-Type': 'text/plain'
         });
-        res.end('Added the dish with id: ' + id);
+        res.end('Added the favorite with id: ' + id);
     });
 })
+*/
 
-.delete(Verify.verifyOrdinaryUser,Verify.verifyAdmin,  function (req, res, next) {
-    Dishes.remove({}, function (err, resp) {
-        if (err) throw err;
-        res.json(resp);
-    });
-});
-
-dishRouter.route('/:dishId')
-.get(Verify.verifyOrdinaryUser, function (req, res, next) {
-    Dishes.findById(req.params.dishId)
-        .populate('comments.postedBy')//uses populate to get the postedby information for the comments.
-        .exec(function (err, dish) {
-        if (err) throw err;
-        res.json(dish);
-    });
-})
-
-.put(Verify.verifyOrdinaryUser,Verify.verifyAdmin,  function (req, res, next) {
-    Dishes.findByIdAndUpdate(req.params.dishId, {
-        $set: req.body
-    }, {
-        new: true
-    }, function (err, dish) {
-        if (err) throw err;
-        res.json(dish);
-    });
-})
-
-.delete(Verify.verifyOrdinaryUser,Verify.verifyAdmin,  function (req, res, next) {
-    Dishes.findByIdAndRemove(req.params.dishId, function (err, resp) {        if (err) throw err;
-        res.json(resp);
-    });
-});
-
-
-dishRouter.route('/:dishId/comments')
-
-.all(Verify.verifyOrdinaryUser)//check that the user is a logged in a verified user
-
-.get(function (req, res, next) {
-    Dishes.findById(req.params.dishId)
-        .populate('comments.postedBy')//uses populate to get the postedby information for the comments.
-        .exec(function (err, dish) {
-        if (err) throw err;
-        res.json(dish.comments);
-    });
-})
-
-.post(function (req, res, next) {
-    Dishes.findById(req.params.dishId, function (err, dish) {
-        if (err) throw err;
-        req.body.postedBy = req.decoded._doc._id;
-        dish.comments.push(req.body);
-        dish.save(function (err, dish) {
-            if (err) throw err;
-            console.log('Updated Comments!');
-            res.json(dish);
+.post(Verify.verifyOrdinaryUser, function (req, res, next) {
+    var fav = Favorites({
+            dishId:req.body.dishId,
+            postedBy:req.decoded._doc._id
         });
-    });
-})
-
-.delete(Verify.verifyAdmin,  function (req, res, next) {
-    Dishes.findById(req.params.dishId, function (err, dish) {
-        if (err) throw err;
-        for (var i = (dish.comments.length - 1); i >= 0; i--) {
-            dish.comments.id(dish.comments[i]._id).remove();
-        }
-        dish.save(function (err, result) {
+        fav.save(function(err,favorite) {
             if (err) throw err;
-            res.writeHead(200, {
-                'Content-Type': 'text/plain'
+             res.writeHead(200, {
+            'Content-Type': 'text/plain'
             });
-            res.end('Deleted all comments!');
+            var id = fav._id;
+            res.end('Added the favorite with id: ' + id);
         });
+
     });
-});
 
-dishRouter.route('/:dishId/comments/:commentId')
-.all(Verify.verifyOrdinaryUser)//check for validated user
 
-.get(function (req, res, next) {
-    Dishes.findById(req.params.dishId)
-        .populate('comments.postedBy')
-        .exec(function (err, dish) {
+/*
+    req.body, function (err, favorite) {
+
+        req.body.postedBy = req.decoded._doc._id;
+        console.log(req.body);
         if (err) throw err;
-        res.json(dish.comments.id(req.params.commentId));
+        console.log('Favorite Added');
+        var id = favorite._id;
+
+        res.writeHead(200, {
+            'Content-Type': 'text/plain'
+        });
+        res.end('Added the favorite with id: ' + id);
     });
 })
+*/
 
-.put(function (req, res, next) {
-    // We delete the existing commment and insert the updated
-    // comment as a new comment
-    Dishes.findById(req.params.dishId, function (err, dish) {
-        if (err) throw err;
-        dish.comments.id(req.params.commentId).remove();
-        req.body.postedBy = req.decoded._doc._id;// added to add the userid in after removing the comment.
-        dish.comments.push(req.body);
-        dish.save(function (err, dish) {
-            if (err) throw err;
-            console.log('Updated Comments!');
-            res.json(dish);
-        });
-    });
-})
-
-.delete(function (req, res, next) {
-    Dishes.findById(req.params.dishId, function (err, dish) {
-        if (dish.comments.id(req.params.commentId).postedBy
-           != req.decoded._doc._id) {
-            var err = new Error('You are not authorized to perform this operation!');
-            err.status = 403;
-            return next(err);
-        }
-        dish.comments.id(req.params.commentId).remove();
-        dish.save(function (err, resp) {
-            if (err) throw err;
-            res.json(resp);
-        });
-    });
-});
-
-module.exports = dishRouter;
+module.exports = favoriteRouter;
